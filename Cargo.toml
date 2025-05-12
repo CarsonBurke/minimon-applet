@@ -23,6 +23,8 @@ fern = "0.7"
 chrono = "0.4"
 sha2 = "0.10"
 hex = "0.4"
+plotters="0.3"
+plotters-iced = { git = "https://github.com/D-Brox/plotters-cosmic-iced.git" }
 
 [dependencies.libcosmic]
 git = "https://github.com/pop-os/libcosmic.git"

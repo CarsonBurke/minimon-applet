@@ -2,9 +2,10 @@ use crate::{
     colorpicker::DemoGraph,
     config::{ColorVariant, DeviceKind, GraphColors, GraphKind, MinimonConfig},
     fl,
+    graph::TimeLineGraph,
     svg_graph::SvgColors,
 };
-use cosmic::Element;
+use cosmic::{widget::container, Element};
 
 use cosmic::widget;
 use cosmic::widget::{settings, toggler};
@@ -70,6 +71,12 @@ struct CpuLoad {
     system_pct: f64,
 }
 
+impl CpuLoad {
+    pub fn total(&self) -> f64 {
+        self.user_pct + self.system_pct
+    }
+}
+
 #[derive(Debug)]
 pub struct Cpu {
     // Total CPU load since last update split into user and system
@@ -79,7 +86,7 @@ pub struct Cpu {
     // Load per core since last update split into values read from /proc
     prev_core_times: HashMap<usize, CpuTimes>,
     // Total CPU load for the last MAX_SAMPLES updates
-    samples_sum: VecDeque<f64>,
+    samples_sum: VecDeque<i32>,
     // CPU load for the last MAX_SAMPLES updates, split into user and system
     samples_split: VecDeque<CpuLoad>,
     max_val: u64,
@@ -88,6 +95,7 @@ pub struct Cpu {
     graph_options: Vec<&'static str>,
     /// colors cached so we don't need to convert to string every time
     svg_colors: SvgColors,
+    graph_alt: TimeLineGraph,
 }
 
 impl DemoGraph for Cpu {
@@ -118,6 +126,7 @@ impl DemoGraph for Cpu {
 
     fn set_colors(&mut self, colors: GraphColors) {
         self.colors = colors;
+        self.graph_alt.colors = colors;
         self.svg_colors.set_colors(&colors);
     }
 
@@ -156,7 +165,10 @@ impl Sensor for Cpu {
         if self.samples_sum.len() >= MAX_SAMPLES {
             self.samples_sum.pop_front();
         }
-        self.samples_sum.push_back(new_sum);
+        self.samples_sum.push_back(new_sum as i32);
+
+        self.graph_alt.data = self.samples_sum.clone();
+        self.graph_alt.colors = self.colors;
     }
 
     fn demo_graph(&self, colors: GraphColors) -> Box<dyn DemoGraph> {
@@ -166,24 +178,7 @@ impl Sensor for Cpu {
     }
 
     fn graph(&self) -> String {
-        if self.kind == GraphKind::Ring {
-            let latest = self.latest_sample();
-            let mut value = String::with_capacity(10);
-            let mut percentage = String::with_capacity(10);
-
-            if latest < 10.0 {
-                write!(value, "{latest:.2}").unwrap();
-            } else if latest <= 99.9 {
-                write!(value, "{latest:.1}").unwrap();
-            } else {
-                write!(value, "100").unwrap();
-            }
-            write!(percentage, "{latest}").unwrap();
-
-            crate::svg_graph::ring(&value, &percentage, &self.svg_colors)
-        } else {
-            crate::svg_graph::line(&self.samples_sum, self.max_val, &self.svg_colors)
-        }
+        "".into()
     }
 
     fn settings_ui(&self, config: &MinimonConfig) -> Element<crate::app::Message> {
@@ -194,16 +189,9 @@ impl Sensor for Cpu {
 
         let cpu = self.to_string();
         cpu_elements.push(Element::from(
-            column!(
-                widget::svg(widget::svg::Handle::from_memory(
-                    self.graph().as_bytes().to_owned(),
-                ))
-                .width(90)
-                .height(60),
-                cosmic::widget::text::body(cpu),
-            )
-            .padding(5)
-            .align_x(Alignment::Center),
+            column!(self.graph_alt(60., 60.), cosmic::widget::text::body(cpu),)
+                .padding(5)
+                .align_x(Alignment::Center),
         ));
 
         let selected: Option<usize> = Some(self.graph_kind().into());
@@ -234,7 +222,7 @@ impl Sensor for Cpu {
 
         Row::with_children(cpu_elements)
             .align_y(Alignment::Center)
-            .spacing(0)
+            .spacing(cosmic.space_s())
             .into()
     }
 }
@@ -257,7 +245,7 @@ impl Cpu {
             },
             core_loads: HashMap::new(),
             prev_core_times: Cpu::read_cpu_stats(),
-            samples_sum: VecDeque::from(vec![0.0; MAX_SAMPLES]),
+            samples_sum: VecDeque::from(vec![0; MAX_SAMPLES]),
             samples_split: VecDeque::from(vec![
                 CpuLoad {
                     user_pct: 0.,
@@ -270,13 +258,46 @@ impl Cpu {
             kind,
             graph_options: GRAPH_OPTIONS.to_vec(),
             svg_colors: SvgColors::new(&GraphColors::default()),
+            graph_alt: TimeLineGraph {
+                max_samples: MAX_SAMPLES as i32,
+                data: VecDeque::new(),
+                colors: GraphColors::default(),
+            },
         };
-        cpu.set_colors(GraphColors::default());
+
         cpu
     }
 
+    pub fn graph_alt(&self, width: f32, height: f32) -> Element<crate::app::Message> {
+        if self.kind == GraphKind::Ring {
+            let latest = self.latest_sample();
+            let mut value = String::with_capacity(10);
+            let mut percentage = String::with_capacity(10);
+
+            if latest < 10. {
+                write!(value, "{latest:.2}").unwrap();
+            } else if latest <= 99.9 {
+                write!(value, "{latest:.1}").unwrap();
+            } else {
+                write!(value, "100").unwrap();
+            }
+            write!(percentage, "{latest}").unwrap();
+
+            let ring = crate::svg_graph::ring(&value, &percentage, &self.svg_colors);
+
+            widget::svg(widget::svg::Handle::from_memory(ring.as_bytes().to_owned()))
+                .width(90)
+                .height(60)
+                .into()
+        } else {
+            // crate::svg_graph::line(&self.samples_sum, self.max_val, &self.svg_colors)
+            
+            container(self.graph_alt.view(width, height)).align_y(Alignment::Center).class(cosmic::theme::Container::List).into()
+        }
+    }
+
     pub fn latest_sample(&self) -> f64 {
-        *self.samples_sum.back().unwrap_or(&0f64)
+        self.total_cpu_load.total()
     }
 
     // Read CPU statistics from /proc/stat
@@ -408,9 +429,9 @@ impl fmt::Display for Cpu {
         let current_val = self.latest_sample();
         let unit = "%";
 
-        let output = if current_val < 10.0 {
+        let output = if current_val < 10. {
             format!("{current_val:.2}{unit}")
-        } else if current_val < 100.0 {
+        } else if current_val < 100. {
             format!("{current_val:.1}{unit}")
         } else {
             format!("{current_val}{unit}")

@@ -1280,7 +1280,7 @@ impl Minimon {
         }
 
         // Format CPU usage based on horizontal layout and sample value
-        let formatted_cpu = if self.cpu.latest_sample() < 10.0 && horizontal {
+        let formatted_cpu = if self.cpu.latest_sample() < 10. && horizontal {
             format!("{:.2}%", self.cpu.latest_sample())
         } else {
             format!("{:.1}%", self.cpu.latest_sample())
@@ -1293,10 +1293,8 @@ impl Minimon {
 
         // Add the CPU chart if needed
         if self.config.cpu.chart {
-            let content = self
-                .core
-                .applet
-                .icon_button_from_handle(Minimon::make_icon_handle(&self.cpu));
+            let width_height = self.graph_size();
+            let content = self.cpu.graph_alt(width_height.0, width_height.1);
             elements.push(content.into());
         }
 
@@ -1908,6 +1906,16 @@ impl Minimon {
                 info!("Could not read power supply info: {e}");
                 false
             }
+        }
+    }
+
+    pub fn graph_size(&self) -> (f32, f32) {
+        match &self.core.applet.size {
+            Size::Hardcoded(s) => (s.0 as f32, s.1 as f32),
+            Size::PanelSize(s) => {
+                let l = s.get_applet_icon_size(false);
+                (l as f32, l as f32)
+            },
         }
     }
 }

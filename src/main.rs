@@ -8,6 +8,7 @@ mod config;
 mod i18n;
 mod sensors;
 mod svg_graph;
+mod graph;
 
 use log::info;
 
