@@ -184,7 +184,7 @@ impl DemoGraph for CpuTemp {
                 )
             }
             GraphKind::Line => {
-                crate::svg_graph::line(&VecDeque::from(DEMO_SAMPLES), 100, &self.svg_colors)
+                crate::svg_graph::line(&VecDeque::from(DEMO_SAMPLES), 100.0, &self.svg_colors)
             }
             GraphKind::Heat => {
                 crate::svg_graph::heat(&VecDeque::from(DEMO_SAMPLES), 100, &self.svg_colors)
@@ -264,7 +264,7 @@ impl Sensor for CpuTemp {
 
                 crate::svg_graph::ring(&value, &percentage, &self.svg_colors)
             }
-            GraphKind::Line => crate::svg_graph::line(&self.samples, max as u64, &self.svg_colors),
+            GraphKind::Line => crate::svg_graph::line(&self.samples, max, &self.svg_colors),
             GraphKind::Heat => crate::svg_graph::heat(&self.samples, max as u64, &self.svg_colors),
         }
     }
@@ -297,17 +297,17 @@ impl Sensor for CpuTemp {
         temp_elements.push(Element::from(
             column!(
                 settings::item(
-                    fl!("enable-cpu-temperature-chart"),
+                    fl!("enable-chart"),
                     toggler(config.cputemp.chart)
                         .on_toggle(|value| { Message::ToggleCpuTempChart(value) }),
                 ),
                 settings::item(
-                    fl!("enable-cpu-temperature-label"),
+                    fl!("enable-label"),
                     toggler(config.cputemp.label)
                         .on_toggle(|value| { Message::ToggleCpuTempLabel(value) }),
                 ),
                 settings::item(
-                    fl!("cpu-temperature-unit"),
+                    fl!("temperature-unit"),
                     widget::dropdown(&self.unit_options, selected_unit, |m| {
                         Message::SelectCpuTempUnit(m.into())
                     },)

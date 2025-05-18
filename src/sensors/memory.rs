@@ -50,7 +50,7 @@ pub static COLOR_CHOICES_LINE: LazyLock<[(&'static str, ColorVariant); 3]> = Laz
 #[derive(Debug)]
 pub struct Memory {
     samples: VecDeque<f64>,
-    max_val: u64,
+    max_val: f64,
     colors: GraphColors,
     system: System,
     kind: GraphKind,
@@ -65,8 +65,8 @@ impl DemoGraph for Memory {
         match self.kind {
             GraphKind::Ring => {
                 // show a number of 40% of max
-                let val = self.max_val as f64 * 0.4;
-                let percentage: u64 = ((val / self.max_val as f64) * 100.0) as u64;
+                let val = self.max_val * 0.4;
+                let percentage: u64 = ((val / self.max_val) * 100.0) as u64;
                 crate::svg_graph::ring(
                     &format!("{val}"),
                     &format!("{percentage}"),
@@ -138,7 +138,10 @@ impl Sensor for Memory {
             let mut value = String::with_capacity(10);
             let mut percentage = String::with_capacity(10);
 
-            let pct: u64 = ((latest / self.max_val as f64) * 100.0) as u64;
+            let mut pct: u64 = ((latest / self.max_val as f64) * 100.0) as u64;
+            if pct > 100 {
+                pct = 100;
+            }
 
             write!(percentage, "{pct}").unwrap();
 
@@ -149,10 +152,10 @@ impl Sensor for Memory {
 
             if latest < 10.0 {
                 write!(value, "{latest:.2}").unwrap();
-            } else if latest < 100.0 {
+            } else if latest <= 99.9 {
                 write!(value, "{latest:.1}").unwrap();
             } else {
-                write!(value, "{latest}").unwrap();
+                write!(value, "100").unwrap();
             }
 
             crate::svg_graph::ring(&value, &percentage, &self.svg_colors)
@@ -185,12 +188,12 @@ impl Sensor for Memory {
         mem_elements.push(Element::from(
             column!(
                 settings::item(
-                    fl!("enable-memory-chart"),
+                    fl!("enable-chart"),
                     toggler(config.memory.chart)
                         .on_toggle(|value| { Message::ToggleMemoryChart(value) }),
                 ),
                 settings::item(
-                    fl!("enable-memory-label"),
+                    fl!("enable-label"),
                     toggler(config.memory.label)
                         .on_toggle(|value| { Message::ToggleMemoryLabel(value) }),
                 ),
@@ -223,7 +226,12 @@ impl Memory {
         let mut system = System::new();
         system.refresh_memory();
 
-        let max_val = system.total_memory() / 1_073_741_824;
+        let max_val: f64 = system.total_memory() as f64 / 1_073_741_824.0;
+        log::info!(
+            "System memory: {} / {:.2} GB",
+            system.total_memory(),
+            max_val
+        );
 
         // value and percentage are pre-allocated and reused as they're changed often.
         let mut percentage = String::with_capacity(6);
@@ -254,12 +262,16 @@ impl Memory {
         *self.samples.back().unwrap_or(&0f64)
     }
 
+    pub fn total(&self) -> f64 {
+        self.max_val
+    }
+
     pub fn to_string(&self, vertical_panel: bool) -> String {
         let mut current_val = self.latest_sample();
         let unit: &str;
 
         if self.show_percentage {
-            current_val = (current_val * 100.0) / self.max_val as f64;
+            current_val = (current_val * 100.0) / self.max_val;
             unit = "%";
         } else if !vertical_panel {
             unit = " GB";

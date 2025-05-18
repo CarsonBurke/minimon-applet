@@ -87,6 +87,15 @@ impl super::GpuIf for NvidiaGpu<'_> {
         })
     }
 
+    fn temperature(&self) -> Result<u32> {
+        self.with_device(|device_ref| {
+            let temp = device_ref
+                .temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu)?
+                * 1000;
+            Ok(temp)
+        })
+    }
+
     fn vram_total(&self) -> u64 {
         self.vram_total
     }
@@ -109,7 +118,7 @@ impl NvidiaGpu<'_> {
                 .filter_map(|i| {
                     // Try to get both name and UUID, skip this GPU if either fails
                     let name = NvidiaGpu::name(i).ok()?;
-                    let uuid = format!("{}{}", NvidiaGpu::uuid(i).ok()?, count);
+                    let uuid = NvidiaGpu::uuid(i).ok()?;
 
                     Some(Gpu::new(Box::new(NvidiaGpu::new(i, name, uuid))))
                 })

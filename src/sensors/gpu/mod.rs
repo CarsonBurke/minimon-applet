@@ -1,13 +1,16 @@
 use anyhow::Result;
 
-pub mod nvidia;
 pub mod amd;
 pub mod intel;
+pub mod nvidia;
 
 pub trait GpuIf {
     fn name(&self) -> String;
     fn id(&self) -> String;
     fn usage(&self) -> Result<u32>;
+
+    // Temp in millidegrees Celcius
+    fn temperature(&self) -> Result<u32>;
     fn vram_total(&self) -> u64;
     fn vram_used(&self) -> Result<u64>;
 
