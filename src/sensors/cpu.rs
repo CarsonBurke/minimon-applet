@@ -31,25 +31,6 @@ use super::Sensor;
 
 const MAX_SAMPLES: usize = 21;
 
-use std::sync::LazyLock;
-
-pub static COLOR_CHOICES_RING: LazyLock<[(&'static str, ColorVariant); 4]> = LazyLock::new(|| {
-    [
-        (fl!("graph-ring-r1").leak(), ColorVariant::Color4),
-        (fl!("graph-ring-r2").leak(), ColorVariant::Color3),
-        (fl!("graph-ring-back").leak(), ColorVariant::Color1),
-        (fl!("graph-ring-text").leak(), ColorVariant::Color2),
-    ]
-});
-
-pub static COLOR_CHOICES_LINE: LazyLock<[(&'static str, ColorVariant); 3]> = LazyLock::new(|| {
-    [
-        (fl!("graph-line-graph").leak(), ColorVariant::Color4),
-        (fl!("graph-line-back").leak(), ColorVariant::Color1),
-        (fl!("graph-line-frame").leak(), ColorVariant::Color2),
-    ]
-});
-
 const GRAPH_OPTIONS: [&str; 2] = ["Ring", "Line"];
 
 #[derive(Debug)]
@@ -87,6 +68,7 @@ pub struct Cpu {
     graph_options: Vec<&'static str>,
     /// colors cached so we don't need to convert to string every time
     svg_colors: SvgColors,
+    pub no_decimals: bool,
 }
 
 impl DemoGraph for Cpu {
@@ -120,9 +102,9 @@ impl DemoGraph for Cpu {
 
     fn color_choices(&self) -> Vec<(&'static str, ColorVariant)> {
         if self.kind == GraphKind::Line {
-            (*COLOR_CHOICES_LINE).into()
+            (*super::COLOR_CHOICES_LINE).into()
         } else {
-            (*COLOR_CHOICES_RING).into()
+            (*super::COLOR_CHOICES_RING).into()
         }
     }
 
@@ -168,12 +150,16 @@ impl Sensor for Cpu {
             let mut value = String::with_capacity(10);
             let mut percentage = String::with_capacity(10);
 
-            if latest < 10.0 {
-                write!(value, "{latest:.2}").unwrap();
-            } else if latest <= 99.9 {
-                write!(value, "{latest:.1}").unwrap();
+            if self.no_decimals {
+                write!(value, "{}%", latest.round()).unwrap()
             } else {
-                write!(value, "100").unwrap();
+                if latest < 10.0 {
+                    write!(value, "{latest:.2}").unwrap()
+                } else if latest <= 99.9 {
+                    write!(value, "{latest:.1}").unwrap()
+                } else {
+                    write!(value, "100").unwrap()
+                };
             }
             write!(percentage, "{latest}").unwrap();
 
@@ -215,6 +201,13 @@ impl Sensor for Cpu {
                 settings::item(
                     fl!("enable-label"),
                     toggler(config.cpu.label).on_toggle(|value| { Message::ToggleCpuLabel(value) }),
+                ),
+                settings::item(
+                    fl!("cpu-no-decimals"),
+                    row!(
+                        widget::checkbox("", config.cpu.no_decimals)
+                            .on_toggle(Message::ToggleCpuNoDecimals)
+                    ),
                 ),
                 row!(
                     widget::dropdown(&self.graph_options, selected, move |m| {
@@ -264,6 +257,7 @@ impl Cpu {
             kind,
             graph_options: GRAPH_OPTIONS.to_vec(),
             svg_colors: SvgColors::new(&GraphColors::default()),
+            no_decimals: false,
         };
         cpu.set_colors(GraphColors::default());
         cpu
@@ -400,17 +394,18 @@ use std::fmt;
 impl fmt::Display for Cpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let current_val = self.latest_sample();
-        let unit = "%";
 
-        let output = if current_val < 10.0 {
-            format!("{current_val:.2}{unit}")
-        } else if current_val < 100.0 {
-            format!("{current_val:.1}{unit}")
+        if self.no_decimals {
+            write!(f, "{}%", current_val.round())
         } else {
-            format!("{current_val}{unit}")
-        };
-
-        write!(f, "{output}")
+            if current_val < 10.0 {
+                write!(f, "{current_val:.2}%")
+            } else if current_val < 100.0 {
+                write!(f, "{current_val:.1}%")
+            } else {
+                write!(f, "{current_val}%")
+            }
+        }
     }
 }
 
