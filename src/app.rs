@@ -379,7 +379,7 @@ impl cosmic::Application for Minimon {
         for content in &self.config.content_order.order {
             match content {
                 ContentType::CpuUsage => {
-                    elements.extend(self.cpu_panel_ui(horizontal));
+                    elements.push(self.cpu_panel_ui(horizontal));
                 }
                 ContentType::CpuTemp => {
                     elements.extend(self.cpu_temp_panel_ui(horizontal));
@@ -1307,28 +1307,30 @@ impl Minimon {
                 };
 
                 let item_row = row!(
-                    button::icon(
-                        widget::icon::from_name("pan-up-symbolic")
-                            .symbolic(true)
-                            .size(5)
-                    )
-                    .on_press(Message::ChangeContentOrder(
-                        ContentOrderChange {
-                            current_index: index,
-                            new_index: index - 1
-                        }
-                    )),
-                    button::icon(
-                        widget::icon::from_name("pan-down-symbolic")
-                            .symbolic(true)
-                            .size(5)
-                    )
-                    .on_press(Message::ChangeContentOrder(
-                        ContentOrderChange {
-                            current_index: index,
-                            new_index: index + 1
-                        }
-                    )),
+                    row!(
+                        button::icon(
+                            widget::icon::from_name("pan-up-symbolic")
+                                .symbolic(true)
+                                .size(5)
+                        )
+                        .on_press(Message::ChangeContentOrder(
+                            ContentOrderChange {
+                                current_index: index,
+                                new_index: index - 1
+                            }
+                        )),
+                        button::icon(
+                            widget::icon::from_name("pan-down-symbolic")
+                                .symbolic(true)
+                                .size(5)
+                        )
+                        .on_press(Message::ChangeContentOrder(
+                            ContentOrderChange {
+                                current_index: index,
+                                new_index: index + 1
+                            }
+                        )),
+                    ),
                     item
                 )
                 .spacing(cosmic::theme::spacing().space_xxs)
@@ -1339,7 +1341,7 @@ impl Minimon {
 
             children
         })
-        .spacing(cosmic::theme::spacing().space_s);
+        .spacing(cosmic::theme::spacing().space_xs);
 
         let content_order = row!(
             text(fl!("content-order")),
@@ -1381,14 +1383,19 @@ impl Minimon {
         }
     }
 
-    fn cpu_panel_ui(&self, horizontal: bool) -> VecDeque<Element<crate::app::Message>> {
+    fn cpu_panel_ui(&self, horizontal: bool) -> Element<crate::app::Message> {
         let size = self.core.applet.suggested_size(false);
 
-        let mut elements: VecDeque<Element<Message>> = VecDeque::new();
+        let mut elements = Vec::new();
 
         // Handle the symbols button if needed
         if self.config.symbols && (self.config.cpu.label || self.config.cpu.chart) {
-            self.push_symbolic_icon(&mut elements, CPU_ICON, false);
+            elements.push(
+                widget::icon::from_name(CPU_ICON)
+                    .symbolic(true)
+                    .size(size.1)
+                    .into(),
+            );
         }
 
         let cpu_usage = self.cpu.latest_sample();
@@ -1407,17 +1414,27 @@ impl Minimon {
 
         // Add the CPU label if needed
         if self.config.cpu.label {
-            elements.push_back(self.figure_label(formatted_cpu).into());
+            elements.push(self.figure_label(formatted_cpu).into());
         }
 
         // Add the CPU chart if needed
         if self.config.cpu.chart {
-            elements.push_back(self.cpu.chart().height(size.0).width(size.1).into());
+            elements.push(self.cpu.chart().height(size.0).width(size.1).into());
         }
-        elements
+
+        match horizontal {
+            true => Row::from_vec(elements)
+                .align_y(Alignment::Center)
+                .spacing(cosmic::theme::spacing().space_xxs)
+                .into(),
+            false => Column::from_vec(elements)
+                .align_x(Alignment::Center)
+                .spacing(cosmic::theme::spacing().space_xxs)
+                .into(),
+        }
     }
 
-    fn cpu_temp_panel_ui(&self, _horizontal: bool) -> VecDeque<Element<crate::app::Message>> {
+    fn cpu_temp_panel_ui(&self, _horizontal: bool) -> Element<crate::app::Message> {
         let size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
@@ -1442,7 +1459,7 @@ impl Minimon {
         elements
     }
 
-    fn memory_panel_ui(&self, horizontal: bool) -> VecDeque<Element<crate::app::Message>> {
+    fn memory_panel_ui(&self, horizontal: bool) -> Element<crate::app::Message>> {
         let size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
