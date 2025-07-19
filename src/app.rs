@@ -135,6 +135,7 @@ pub struct Minimon {
     core: Core,
     /// The svg image to draw for the CPU load
     cpu: Cpu,
+    cpu_cores: CpuCores,
     /// The svg image to draw for the CPU load
     cputemp: CpuTemp,
     /// The svg image to draw for the Memory load
@@ -464,7 +465,7 @@ impl cosmic::Application for Minimon {
             let padding = if self.core.is_condensed() {
                 theme.cosmic().space_s()
             } else {
-                theme.cosmic().space_l()
+                theme.cosmic().space_m()
             };
 
             let mut content = Column::new();
@@ -474,6 +475,7 @@ impl cosmic::Application for Minimon {
                     SettingsVariant::Cpu => {
                         content = content.push(settings_sub_page_heading!(SETTINGS_CPU_HEADING));
                         content = content.push(self.cpu.settings_ui());
+                        
                     }
                     SettingsVariant::CpuTemp => {
                         content =
@@ -703,6 +705,9 @@ impl cosmic::Application for Minimon {
                 match device {
                     DeviceKind::Cpu => {
                         self.colorpicker.activate(device, self.cpu.demo_graph());
+                    }
+                    DeviceKind::CpuCores => {
+                        self.colorpicker.activate(device, self.cpucores.demo_graph());
                     }
                     DeviceKind::CpuTemp => {
                         self.colorpicker.activate(device, self.cputemp.demo_graph());
@@ -1307,6 +1312,7 @@ impl Minimon {
             for (index, content) in self.config.content_order.order.iter().enumerate() {
                 let item = match content {
                     ContentType::CpuUsage => text(fl!("settings-cpu")),
+                    ContentType::CpuCores => text(fl!("settings-cpu-cores")),
                     ContentType::CpuTemp => {
                         if !self.cputemp.is_found() {
                             continue;
@@ -1391,6 +1397,42 @@ impl Minimon {
     }
 
     fn cpu_panel_ui(&self, horizontal: bool) -> VecDeque<Element<crate::app::Message>> {
+        let size = self.core.applet.suggested_size(false);
+
+        let mut elements: VecDeque<Element<Message>> = VecDeque::new();
+
+        // Handle the symbols button if needed
+        if self.config.symbols && (self.config.cpu.label || self.config.cpu.chart) {
+            self.push_symbolic_icon(&mut elements, CPU_ICON, false);
+        }
+
+        let cpu_usage = self.cpu.latest_sample();
+        // Format CPU usage based on horizontal layout and sample value
+        let formatted_cpu = if self.config.cpu.no_decimals {
+            if cpu_usage.round() < 10.0 {
+                format!(" {}%", cpu_usage.round())
+            } else {
+                format!("{}%", cpu_usage.round())
+            }
+        } else if cpu_usage < 10.0 && horizontal {
+            format!("{:.2}%", cpu_usage)
+        } else {
+            format!("{:.1}%", cpu_usage)
+        };
+
+        // Add the CPU label if needed
+        if self.config.cpu.label {
+            elements.push_back(self.figure_label(formatted_cpu).into());
+        }
+
+        // Add the CPU chart if needed
+        if self.config.cpu.chart {
+            elements.push_back(self.cpu.chart().height(size.0).width(size.1).into());
+        }
+        elements
+    }
+    
+    fn cpu_cores_panel_ui(&self, horizontal: bool) -> VecDeque<Element<crate::app::Message>> {
         let size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();

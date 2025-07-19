@@ -66,6 +66,7 @@ pub trait Sensor: Default {
 }
 
 pub mod cpu;
+pub mod cpu_cores;
 pub mod cputemp;
 pub mod disks;
 pub mod gpu;

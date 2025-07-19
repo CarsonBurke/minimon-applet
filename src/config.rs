@@ -47,6 +47,7 @@ impl From<GraphKind> for usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
     Cpu,
+    CpuCores,
     CpuTemp,
     Memory,
     Network(NetworkVariant),
@@ -60,6 +61,7 @@ impl std::fmt::Display for DeviceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             DeviceKind::Cpu => write!(f, "{}", fl!("sensor-cpu")),
+            DeviceKind::CpuCores => write!(f, "{}", fl!("sensor-cpu-cores")),
             DeviceKind::CpuTemp => write!(f, "{}", fl!("sensor-cpu-temperature")),
             DeviceKind::Memory => write!(f, "{}", fl!("sensor-memory")),
             DeviceKind::Network(_) => write!(f, "{}", fl!("sensor-network")),
@@ -95,6 +97,7 @@ impl GraphColors {
     pub fn new(kind: DeviceKind) -> Self {
         match kind {
             DeviceKind::Cpu => GraphColors::default(),
+            DeviceKind::CpuCores => GraphColors::default(),
             DeviceKind::CpuTemp => GraphColors::default(),
 
             DeviceKind::Memory => GraphColors {
@@ -174,6 +177,26 @@ impl Default for CpuConfig {
 impl CpuConfig {
     pub fn is_visible(&self) -> bool {
         self.chart || self.label
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CosmicConfigEntry, PartialEq, Eq)]
+#[version = 1]
+pub struct CpuCoresConfig {
+    pub chart: bool,
+    pub label: bool,
+    pub kind: GraphKind,
+    pub colors: GraphColors,
+}
+
+impl Default for CpuCoresConfig {
+    fn default() -> Self {
+        Self {
+            chart: true,
+            label: false,
+            kind: GraphKind::Ring,
+            colors: GraphColors::new(DeviceKind::CpuCores),
+        }
     }
 }
 
@@ -417,6 +440,7 @@ impl Default for GpuConfig {
 pub enum ContentType {
     CpuUsage,
     CpuTemp,
+    CpuCores,
     MemoryUsage,
     NetworkUsage,
     DiskUsage,
@@ -434,6 +458,7 @@ impl Default for ContentOrder {
         Self {
             order: vec![
                 ContentType::CpuUsage,
+                ContentType::CpuCores,
                 ContentType::CpuTemp,
                 ContentType::MemoryUsage,
                 ContentType::NetworkUsage,
@@ -452,6 +477,7 @@ pub struct MinimonConfig {
     pub monospace_labels: bool,
 
     pub cpu: CpuConfig,
+    pub cpu_cores: CpuCoresConfig,
     pub cputemp: CpuTempConfig,
     pub memory: MemoryConfig,
 
@@ -478,6 +504,7 @@ impl Default for MinimonConfig {
             label_size_default: 11,
             monospace_labels: false,
             cpu: CpuConfig::default(),
+            cpu_cores: CpuCoresConfig::default(),
             cputemp: CpuTempConfig::default(),
             memory: MemoryConfig::default(),
             network1: NetworkConfig {
